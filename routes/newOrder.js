@@ -3,8 +3,9 @@ const router = express.Router();
 const axios = require('axios');
 const nodemailer = require('nodemailer');
 const twilio = require('twilio');
+const dotenv = require('dotenv');
 
-
+dotenv.config();
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
@@ -100,8 +101,8 @@ router.post('/', async(req, res) => {
   // sending whatsapp message start.................................................................................................................................
 
 
-  const accountSid = 'ACe54244ab179e1502b86d11ae68a0855f'; // Your Twilio account SID
-  const authToken = '7939901ec57c7a01d4c0a5db5628bb2d'; // Your Twilio auth token
+  const accountSid = process.env.ACCOUNTSID ; // Your Twilio account SID
+  const authToken = process.env.AUTHTOKEN ; // Your Twilio auth token
   const client = twilio(accountSid, authToken);
 
 
