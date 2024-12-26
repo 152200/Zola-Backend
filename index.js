@@ -4,36 +4,14 @@ const cors = require("cors");
 const nodemailer = require("nodemailer");
 const axios = require("axios");
 const dotenv = require("dotenv");
-const fs = require("fs");
-const path = require("path");
 
 dotenv.config();
 
 const app = express();
 
 
-// Define the directory path
-const publicUploadsDir = path.join(__dirname, "tmp/uploads");
-// hello
-try {
-  // Ensure the directory exists
-  if (!fs.existsSync(publicUploadsDir)) {
-    fs.mkdirSync(publicUploadsDir, { recursive: true });
-  }
 
-  // Set read/write/execute permissions for everyone
-  fs.chmodSync(publicUploadsDir, 0o777); 
-  console.log("Directory permissions updated successfully");
-} catch (error) {
-  console.error("Error setting permissions:", error.message);
-}
-
-
-if (!fs.existsSync(publicUploadsDir)) {
-  fs.mkdirSync(publicUploadsDir, { recursive: true });
-}
-
-app.use("/tmp/uploads", express.static(publicUploadsDir));
+app.use("/uploads", express.static('uploads'));
 
 // Middleware
 app.use(
