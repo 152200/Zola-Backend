@@ -13,7 +13,7 @@ const app = express();
 
 
 // Define the directory path
-const publicUploadsDir = path.join(__dirname, "public/uploads");
+const publicUploadsDir = path.join(__dirname, "tmp/uploads");
 // hello
 try {
   // Ensure the directory exists
@@ -33,7 +33,7 @@ if (!fs.existsSync(publicUploadsDir)) {
   fs.mkdirSync(publicUploadsDir, { recursive: true });
 }
 
-app.use("/public/uploads", express.static(publicUploadsDir));
+app.use("/tmp/uploads", express.static(publicUploadsDir));
 
 // Middleware
 app.use(
