@@ -11,8 +11,22 @@ dotenv.config();
 
 const app = express();
 
-// Ensure the directories exist
+
+// Define the directory path
 const publicUploadsDir = path.join(__dirname, "public/uploads");
+
+try {
+  // Ensure the directory exists
+  if (!fs.existsSync(publicUploadsDir)) {
+    fs.mkdirSync(publicUploadsDir, { recursive: true });
+  }
+
+  // Set read/write/execute permissions for everyone
+  fs.chmodSync(publicUploadsDir, 0o777); 
+  console.log("Directory permissions updated successfully");
+} catch (error) {
+  console.error("Error setting permissions:", error.message);
+}
 
 
 if (!fs.existsSync(publicUploadsDir)) {
