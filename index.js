@@ -14,7 +14,7 @@ const app = express();
 
 // Define the directory path
 const publicUploadsDir = path.join(__dirname, "public/uploads");
-
+// hello
 try {
   // Ensure the directory exists
   if (!fs.existsSync(publicUploadsDir)) {
