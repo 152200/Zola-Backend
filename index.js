@@ -11,7 +11,7 @@ const app = express();
 
 
 
-app.use("/uploads", express.static('uploads'));
+app.use("/uploads", express.static('/uploads'));
 
 // Middleware
 app.use(

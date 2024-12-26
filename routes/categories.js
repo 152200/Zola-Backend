@@ -3,7 +3,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer')
 
-var upload   = multer({ dest: "/uploads" })
+var upload   = multer({ dest: "/uploades" })
 
 const FILE_TYPE_MAP = {
     'image/png': 'png',
@@ -19,7 +19,7 @@ const storage = multer.diskStorage({
         if(isValid) {
             uploadError = null
         }
-      cb(uploadError, 'uploads')
+      cb(uploadError, 'uploades')
     },
     filename: function (req, file, cb) {
         
@@ -58,7 +58,7 @@ router.post('/',uploadOptions.single('image'), async (req,res)=>{
     if(!file) return res.status(400).send('No image in the request')
 
     const fileName = file.filename
-    const basePath = `${req.protocol}://${req.get('host')}/uploads/`;
+    const basePath = `${req.protocol}://${req.get('host')}/uploades/`;
     let category = new Category({
         name: req.body.name,
         icon: `${basePath}${fileName}`,

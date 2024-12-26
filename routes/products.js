@@ -6,7 +6,7 @@ const mongoose = require('mongoose');
 const multer = require('multer');
 // var _config  = require("./config");
 
-var upload   = multer({ dest: "/uploads" })
+var upload   = multer({ dest: "/uploades" })
 
 const FILE_TYPE_MAP = {
     'image/png': 'png',
@@ -22,7 +22,7 @@ const storage = multer.diskStorage({
         if(isValid) {
             uploadError = null
         }
-      cb(uploadError, 'uploads')
+      cb(uploadError, 'uploades')
     },
     filename: function (req, file, cb) {
         
@@ -68,7 +68,7 @@ router.post(`/`, uploadOptions.fields([{ name: 'image', maxCount: 1 }, { name: '
     if(!file) return res.status(400).send('No main image in the request');
 
     const fileName = file.filename;
-    const basePath = `${req.protocol}://${req.get('host')}/uploads/`;
+    const basePath = `${req.protocol}://${req.get('host')}/uploades/`;
 
     // Create image paths for gallery images
     let imagesPaths = [];
@@ -175,7 +175,7 @@ router.put(
          }
          const files = req.files
          let imagesPaths = [];
-         const basePath = `${req.protocol}://${req.get('host')}/uploads/`;
+         const basePath = `${req.protocol}://${req.get('host')}/uploades/`;
 
          if(files) {
             files.map(file =>{
