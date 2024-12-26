@@ -15,7 +15,9 @@ const dotenv = require('dotenv')
 
 const app = express();
 dotenv.config()
-app.use('/uploads', express.static('uploads'));
+app.use('/uploads', express.static('/tmp/uploads'));
+app.use('/public/uploads', express.static('/tmp/public/uploads'));
+
 
 //middleware
 app.use(cors(
