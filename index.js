@@ -23,6 +23,7 @@ app.use(cors(
     origin: ["https://152200.github.io/", process.env.ORIGIN1, process.env.ORIGIN2, process.env.ORIGIN3, process.env.ORIGIN4],
     method: ["GET", "POST", "DELETE", "PUT"],
     credentials: true,
+     allowedHeaders: ['Content-Type', 'Authorization'], 
   }
 ));
 app.use(express.json());
