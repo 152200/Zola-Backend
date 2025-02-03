@@ -453,149 +453,225 @@
 
 
 
-
 const express = require('express');
+const { Product } = require('../models/product');
 const { Category } = require('../models/category');
+const mongoose = require('mongoose');
 const multer = require('multer');
 const { uploadImage } = require('../services/cloudinaryConfig'); // Import Cloudinary upload function
-const fs = require('fs');
-const path = require('path');
 
 const router = express.Router();
 
-// Ensure the upload directory exists
-const uploadDir = '/tmp/uploads';
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-// Supported file types
+// Multer configuration for handling file uploads (in memory)
 const FILE_TYPE_MAP = {
     'image/png': 'png',
     'image/jpeg': 'jpeg',
     'image/jpg': 'jpg'
 };
 
-// Multer configuration for handling file uploads
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
+const storage = multer.memoryStorage(); // Store files in memory instead of disk
+const uploadOptions = multer({
+    storage: storage,
+    fileFilter: (req, file, cb) => {
         const isValid = FILE_TYPE_MAP[file.mimetype];
-        let uploadError = new Error('Invalid image type');
-        if (isValid) {
-            uploadError = null;
-        }
-        cb(uploadError, uploadDir);
-    },
-    filename: function (req, file, cb) {
-        const fileName = file.originalname.split(' ').join('-').split('.')[0]; // Clean file name
-        const extension = FILE_TYPE_MAP[file.mimetype];
-        cb(null, `${fileName}-${Date.now()}.${extension}`);
+        let uploadError = isValid ? null : new Error('Invalid image type');
+        cb(uploadError, isValid);
     }
 });
 
-const uploadOptions = multer({ storage: storage });
-
-// GET all categories
+// GET all products
 router.get(`/`, async (req, res) => {
+    let filter = {};
+    if (req.query.categories) {
+        filter = { category: req.query.categories.split(',') };
+    }
     try {
-        const categoryList = await Category.find();
-        if (!categoryList) {
-            return res.status(500).json({ success: false, message: 'No categories found.' });
+        const productList = await Product.find(filter).populate('category');
+        if (!productList) {
+            return res.status(500).json({ success: false, message: 'No products found.' });
         }
-        res.status(200).send(categoryList);
+        res.send(productList);
     } catch (error) {
         console.error(error);
-        res.status(500).json({ success: false, message: 'Server error while fetching categories.' });
+        res.status(500).json({ success: false, message: 'Server error while fetching products.' });
     }
 });
 
-// GET category by ID
-router.get('/:id', async (req, res) => {
+// GET product by ID
+router.get(`/:id`, async (req, res) => {
     try {
-        const category = await Category.findById(req.params.id);
-        if (!category) {
-            return res.status(404).json({ success: false, message: 'Category not found.' });
+        const product = await Product.findById(req.params.id).populate('category');
+        if (!product) {
+            return res.status(404).json({ success: false, message: 'Product not found.' });
         }
-        res.status(200).send(category);
+        res.send(product);
     } catch (error) {
         console.error(error);
-        res.status(500).json({ success: false, message: 'Server error while fetching category.' });
+        res.status(500).json({ success: false, message: 'Server error while fetching product.' });
     }
 });
 
-// POST a new category with Cloudinary icon upload
-router.post('/', uploadOptions.single('image'), async (req, res) => {
-    const file = req.file;
+// POST a new product with Cloudinary image upload
+router.post(`/`, uploadOptions.fields([{ name: 'image', maxCount: 1 }, { name: 'images', maxCount: 10 }]), async (req, res) => {
+    const file = req.files['image'] ? req.files['image'][0] : null;
+    const files = req.files['images'];
 
-    if (!file || !fs.existsSync(file.path)) {
-        return res.status(400).send('File not found or could not be processed.');
+    if (!file) {
+        return res.status(400).send('No main image in the request.');
     }
 
     try {
-        // Upload the category icon to Cloudinary
-        const iconResult = await uploadImage(file.path, { folder: 'categories' });
-        console.log('Cloudinary upload result:', iconResult); // Debugging log
+        // Upload main image to Cloudinary
+        const mainImageResult = await uploadImage(file.buffer, { folder: 'products', resource_type: 'image' });
+        const mainImageUrl = mainImageResult.secure_url;
 
-        const iconUrl = iconResult.secure_url;
+        // Upload gallery images to Cloudinary
+        let galleryImagesUrls = [];
+        if (files) {
+            for (const file of files) {
+                const galleryImageResult = await uploadImage(file.buffer, { folder: 'products/gallery', resource_type: 'image' });
+                galleryImagesUrls.push(galleryImageResult.secure_url);
+            }
+        }
 
-        // Create the category with the Cloudinary URL
-        const category = new Category({
+        // Create the product with Cloudinary URLs
+        const product = new Product({
             name: req.body.name,
-            icon: iconUrl, // Icon URL from Cloudinary
-            color: req.body.color,
+            description: req.body.description,
+            richDescription: req.body.richDescription,
+            image: mainImageUrl, // Main image URL from Cloudinary
+            images: galleryImagesUrls, // Gallery image URLs from Cloudinary
+            brand: req.body.brand,
+            price: req.body.price,
+            category: req.body.category,
+            countInStock: req.body.countInStock,
+            rating: req.body.rating,
+            numReviews: req.body.numReviews,
+            isFeatured: req.body.isFeatured,
         });
 
-        const savedCategory = await category.save();
-        if (!savedCategory) {
-            return res.status(400).send('The category cannot be created!');
+        const savedProduct = await product.save();
+        if (!savedProduct) {
+            return res.status(500).send('The product cannot be created.');
         }
-
-        // Clean up temporary file
-        fs.unlink(file.path, (err) => {
-            if (err) console.error('Error deleting temporary file:', err);
-        });
-
-        res.send(savedCategory);
+        res.send(savedProduct);
     } catch (error) {
         console.error(error);
-        res.status(500).send('Error creating category');
+        res.status(500).send('Error creating product.');
     }
 });
 
-// PUT update category
+// PUT update product
 router.put('/:id', async (req, res) => {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+        return res.status(400).send('Invalid Product Id.');
+    }
+
     try {
-        const category = await Category.findByIdAndUpdate(
+        const product = await Product.findByIdAndUpdate(
             req.params.id,
             {
                 name: req.body.name,
-                icon: req.body.icon || undefined, // Allow updating the icon URL directly
-                color: req.body.color,
+                description: req.body.description,
+                richDescription: req.body.richDescription,
+                image: req.body.image,
+                brand: req.body.brand,
+                price: req.body.price,
+                discount: req.body.discount,
+                category: req.body.category,
+                countInStock: req.body.countInStock,
+                rating: req.body.rating,
+                numReviews: req.body.numReviews,
+                isFeatured: req.body.isFeatured,
             },
             { new: true }
         );
 
-        if (!category) {
-            return res.status(404).json({ success: false, message: 'Category not found.' });
+        if (!product) {
+            return res.status(500).send('The product cannot be updated!');
         }
-        res.send(category);
+        res.send(product);
     } catch (error) {
         console.error(error);
-        res.status(500).json({ success: false, message: 'Server error while updating category.' });
+        res.status(500).json({ success: false, message: 'Server error while updating product.' });
     }
 });
 
-// DELETE category
+// DELETE product
 router.delete('/:id', async (req, res) => {
     try {
-        const category = await Category.findByIdAndRemove(req.params.id);
-        if (!category) {
-            return res.status(404).json({ success: false, message: 'Category not found.' });
+        const product = await Product.findByIdAndRemove(req.params.id);
+        if (!product) {
+            return res.status(404).json({ success: false, message: 'Product not found!' });
         }
-        res.status(200).json({ success: true, message: 'The category is deleted!' });
+        res.status(200).json({ success: true, message: 'The product is deleted!' });
     } catch (error) {
         console.error(error);
-        res.status(500).json({ success: false, message: 'Server error while deleting category.' });
+        res.status(500).json({ success: false, message: 'Server error while deleting product.' });
+    }
+});
+
+// GET product count
+router.get(`/get/count`, async (req, res) => {
+    try {
+        const productCount = await Product.countDocuments();
+        if (!productCount) {
+            return res.status(500).json({ success: false, message: 'No products found.' });
+        }
+        res.send({ productCount: productCount });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, message: 'Server error while fetching product count.' });
+    }
+});
+
+// GET featured products
+router.get(`/get/featured/:count`, async (req, res) => {
+    const count = req.params.count ? req.params.count : 0;
+    try {
+        const products = await Product.find({ isFeatured: true }).limit(+count);
+        if (!products) {
+            return res.status(500).json({ success: false, message: 'No featured products found.' });
+        }
+        res.send(products);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, message: 'Server error while fetching featured products.' });
+    }
+});
+
+// PUT update gallery images
+router.put('/gallery-images/:id', uploadOptions.array('images', 10), async (req, res) => {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+        return res.status(400).send('Invalid Product Id.');
+    }
+
+    const files = req.files;
+
+    try {
+        let galleryImagesUrls = [];
+        if (files) {
+            for (const file of files) {
+                const galleryImageResult = await uploadImage(file.buffer, { folder: 'products/gallery', resource_type: 'image' });
+                galleryImagesUrls.push(galleryImageResult.secure_url);
+            }
+        }
+
+        const product = await Product.findByIdAndUpdate(
+            req.params.id,
+            {
+                images: galleryImagesUrls,
+            },
+            { new: true }
+        );
+
+        if (!product) {
+            return res.status(500).send('The gallery cannot be updated!');
+        }
+        res.send(product);
+    } catch (error) {
+        console.error(error);
+        res.status(500).send('Error updating gallery images.');
     }
 });
 
