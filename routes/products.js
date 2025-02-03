@@ -208,7 +208,7 @@ const { Product } = require('../models/product');
 const { Category } = require('../models/category');
 const mongoose = require('mongoose');
 const multer = require('multer');
-const { uploadImage } = require('./cloudinaryConfig'); // Import Cloudinary upload function
+const { uploadImage } = require('../services/cloudinaryConfig'); // Import Cloudinary upload function
 
 const router = express.Router();
 
