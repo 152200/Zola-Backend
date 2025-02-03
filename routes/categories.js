@@ -110,62 +110,64 @@ const express = require('express');
 const { Category } = require('../models/category');
 const multer = require('multer');
 const { uploadImage } = require('../services/cloudinaryConfig'); // Import Cloudinary upload function
-
 const router = express.Router();
 
-// Multer configuration for handling file uploads
+// Supported file types
 const FILE_TYPE_MAP = {
     'image/png': 'png',
     'image/jpeg': 'jpeg',
     'image/jpg': 'jpg'
 };
 
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
+// Multer configuration for handling file uploads (in memory)
+const storage = multer.memoryStorage(); // Store files in memory instead of disk
+const uploadOptions = multer({
+    storage: storage,
+    fileFilter: (req, file, cb) => {
         const isValid = FILE_TYPE_MAP[file.mimetype];
-        let uploadError = new Error('Invalid image type');
-        if (isValid) {
-            uploadError = null;
-        }
-        cb(uploadError, '/tmp/uploads'); // Temporary storage for files
-    },
-    filename: function (req, file, cb) {
-        const fileName = file.originalname.split(' ').join('-');
-        const extension = FILE_TYPE_MAP[file.mimetype];
-        cb(null, `${fileName}-${Date.now()}.${extension}`);
+        let uploadError = isValid ? null : new Error('Invalid image type');
+        cb(uploadError, isValid);
     }
 });
 
-const uploadOptions = multer({ storage: storage });
-
 // GET all categories
 router.get(`/`, async (req, res) => {
-    const categoryList = await Category.find();
-    if (!categoryList) {
-        return res.status(500).json({ success: false });
+    try {
+        const categoryList = await Category.find();
+        if (!categoryList) {
+            return res.status(500).json({ success: false, message: 'No categories found.' });
+        }
+        res.status(200).send(categoryList);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, message: 'Server error while fetching categories.' });
     }
-    res.status(200).send(categoryList);
 });
 
 // GET category by ID
 router.get('/:id', async (req, res) => {
-    const category = await Category.findById(req.params.id);
-    if (!category) {
-        return res.status(500).json({ message: 'The category with the given ID was not found.' });
+    try {
+        const category = await Category.findById(req.params.id);
+        if (!category) {
+            return res.status(404).json({ success: false, message: 'Category not found.' });
+        }
+        res.status(200).send(category);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, message: 'Server error while fetching category.' });
     }
-    res.status(200).send(category);
 });
 
 // POST a new category with Cloudinary icon upload
 router.post('/', uploadOptions.single('image'), async (req, res) => {
     const file = req.file;
     if (!file) {
-        return res.status(400).send('No image in the request');
+        return res.status(400).send('No image in the request.');
     }
 
     try {
         // Upload the category icon to Cloudinary
-        const iconResult = await uploadImage(file.path, { folder: 'categories' });
+        const iconResult = await uploadImage(file.buffer, { folder: 'categories', resource_type: 'image' });
         const iconUrl = iconResult.secure_url;
 
         // Create the category with the Cloudinary URL
@@ -180,50 +182,48 @@ router.post('/', uploadOptions.single('image'), async (req, res) => {
             return res.status(400).send('The category cannot be created!');
         }
 
-        // Clean up temporary file
-        const fs = require('fs');
-        fs.unlink(file.path, (err) => {
-            if (err) console.error('Error deleting temporary file:', err);
-        });
-
         res.send(savedCategory);
     } catch (error) {
         console.error(error);
-        res.status(500).send('Error creating category');
+        res.status(500).send('Error creating category.');
     }
 });
 
 // PUT update category
 router.put('/:id', async (req, res) => {
-    const category = await Category.findByIdAndUpdate(
-        req.params.id,
-        {
-            name: req.body.name,
-            icon: req.body.icon || category.icon, // Allow updating the icon URL directly
-            color: req.body.color,
-        },
-        { new: true }
-    );
+    try {
+        const category = await Category.findByIdAndUpdate(
+            req.params.id,
+            {
+                name: req.body.name,
+                icon: req.body.icon || undefined, // Allow updating the icon URL directly
+                color: req.body.color,
+            },
+            { new: true }
+        );
 
-    if (!category) {
-        return res.status(400).send('The category cannot be updated!');
+        if (!category) {
+            return res.status(404).json({ success: false, message: 'Category not found.' });
+        }
+        res.send(category);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, message: 'Server error while updating category.' });
     }
-    res.send(category);
 });
 
 // DELETE category
-router.delete('/:id', (req, res) => {
-    Category.findByIdAndRemove(req.params.id)
-        .then(category => {
-            if (category) {
-                return res.status(200).json({ success: true, message: 'The category is deleted!' });
-            } else {
-                return res.status(404).json({ success: false, message: 'Category not found!' });
-            }
-        })
-        .catch(err => {
-            return res.status(500).json({ success: false, error: err });
-        });
+router.delete('/:id', async (req, res) => {
+    try {
+        const category = await Category.findByIdAndRemove(req.params.id);
+        if (!category) {
+            return res.status(404).json({ success: false, message: 'Category not found!' });
+        }
+        res.status(200).json({ success: true, message: 'The category is deleted!' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, message: 'Server error while deleting category.' });
+    }
 });
 
 module.exports = router;
