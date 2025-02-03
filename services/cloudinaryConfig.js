@@ -8,9 +8,23 @@ cloudinary.config({
 });
 
 // Function to upload an image
-export const uploadImage = async (imagePath, options = {}) => {
+// Function to upload an image
+export const uploadImage = async (fileBuffer, options = {}) => {
     try {
-        const result = await cloudinary.uploader.upload(imagePath, options);
+        // Use Cloudinary's uploader.upload_stream to handle Buffer objects
+        const result = await new Promise((resolve, reject) => {
+            const uploadStream = cloudinary.uploader.upload_stream(options, (error, result) => {
+                if (error) {
+                    reject(error);
+                } else {
+                    resolve(result);
+                }
+            });
+
+            // Pass the Buffer to the upload stream
+            uploadStream.end(fileBuffer);
+        });
+
         return result;
     } catch (error) {
         console.error('Error uploading image:', error);
